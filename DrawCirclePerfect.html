@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>원 그리기 게임</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+    <h1 class="text-3xl font-bold mb-4">원 그리기 게임</h1>
+    <div class="relative w-full max-w-md aspect-square bg-white rounded-lg shadow-lg mb-4">
+        <canvas id="drawCanvas" class="w-full h-full rounded-lg"></canvas>
+    </div>
+    <p class="text-xl mb-4">정확도: <span id="accuracy" class="font-bold">0</span>%</p>
+    <button id="clearBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">지우기</button>
+    
+    <div id="celebration" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 hidden">
+        <div class="bg-white p-8 rounded-lg text-center">
+            <h2 class="text-3xl font-bold mb-4">축하합니다!</h2>
+            <p class="text-xl">93퍼센트 이상의 정확도를 달성했습니다! 개발자보다 잘하고 계십니다</p>
+            <button id="closeBtn" class="mt-4 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded">닫기</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('drawCanvas');
+const ctx = canvas.getContext('2d');
+const accuracySpan = document.getElementById('accuracy');
+const clearBtn = document.getElementById('clearBtn');
+const celebration = document.getElementById('celebration');
+const closeBtn = document.getElementById('closeBtn');
+
+let isDrawing = false;
+let points = [];
+
+function resizeCanvas() {
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    drawGuideCircle();
+}
+
+function drawGuideCircle() {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(canvas.width, canvas.height) / 2 * 0.9;
+    
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+function getPosition(e) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+    const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+    return {
+        x: (clientX - rect.left) * (canvas.width / rect.width),
+        y: (clientY - rect.top) * (canvas.height / rect.height)
+    };
+}
+
+function startDrawing(e) {
+    e.preventDefault();
+    isDrawing = true;
+    points = [];
+    const pos = getPosition(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+    ctx.strokeStyle = 'blue';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+}
+
+function draw(e) {
+    e.preventDefault();
+    if (!isDrawing) return;
+
+    const pos = getPosition(e);
+    ctx.lineTo(pos.x, pos.y);
+    ctx.stroke();
+    points.push(pos);
+}
+
+function stopDrawing(e) {
+    e.preventDefault();
+    if (!isDrawing) return;
+    isDrawing = false;
+    calculateAccuracy();
+}
+
+function calculateAccuracy() {
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const radius = Math.min(canvas.width, canvas.height) / 2 * 0.9;
+
+    let totalDeviation = 0;
+    let totalAngle = 0;
+    let prevAngle = null;
+
+    points.forEach(point => {
+        const dx = point.x - centerX;
+        const dy = point.y - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const deviation = Math.abs(distance - radius);
+        totalDeviation += deviation;
+
+        const angle = Math.atan2(dy, dx);
+        if (prevAngle !== null) {
+            let diff = angle - prevAngle;
+            if (diff < -Math.PI) diff += 2 * Math.PI;
+            if (diff > Math.PI) diff -= 2 * Math.PI;
+            totalAngle += Math.abs(diff);
+        }
+        prevAngle = angle;
+    });
+
+    const averageDeviation = totalDeviation / points.length;
+    const maxDeviation = radius * 0.2;
+    const deviationAccuracy = Math.max(0, 100 - (averageDeviation / maxDeviation * 100));
+
+    const circleCompleteness = Math.min(100, (totalAngle / (2 * Math.PI)) * 100);
+
+    let accuracy = (deviationAccuracy * 0.6 + circleCompleteness * 0.4);
+    
+    accuracy = Math.min(100, Math.round(accuracy * 1));
+
+    accuracySpan.textContent = accuracy;
+
+    if (accuracy >= 95) {
+        celebration.classList.remove('hidden');
+        startConfetti();
+    }
+}
+
+function clearCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGuideCircle();
+    accuracySpan.textContent = '0';
+}
+
+function startConfetti() {
+    for (let i = 0; i < 100; i++) {
+        createConfetti();
+    }
+}
+
+function createConfetti() {
+    const confetti = document.createElement('div');
+    confetti.className = 'absolute w-2 h-2 bg-random rounded-full';
+    confetti.style.left = Math.random() * 100 + 'vw';
+    confetti.style.top = -10 + 'px';
+    confetti.style.backgroundColor = getRandomColor();
+    confetti.style.animation = `fall ${Math.random() * 3 + 2}s linear`;
+    document.body.appendChild(confetti);
+
+    setTimeout(() => {
+        confetti.remove();
+    }, 5000);
+}
+
+function getRandomColor() {
+    return `hsl(${Math.random() * 360}, 100%, 50%)`;
+}
+
+canvas.addEventListener('mousedown', startDrawing);
+canvas.addEventListener('mousemove', draw);
+canvas.addEventListener('mouseup', stopDrawing);
+canvas.addEventListener('mouseout', stopDrawing);
+
+canvas.addEventListener('touchstart', startDrawing);
+canvas.addEventListener('touchmove', draw);
+canvas.addEventListener('touchend', stopDrawing);
+
+clearBtn.addEventListener('click', clearCanvas);
+closeBtn.addEventListener('click', () => {
+    celebration.classList.add('hidden');
+    clearCanvas();
+});
+    </script>
+
+   <style>
+        @keyframes fall {
+            to {
+                transform: translateY(100vh) rotate(720deg);
+            }
+        }
+    </style>
+</body>
+</html>
